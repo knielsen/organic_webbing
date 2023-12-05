@@ -15,6 +15,9 @@ box_side_thick = webbing_thick + webbing_base_thick + 1.2;
 box_outer_size = box_inner_size + 2*box_side_thick;
 web_scaling = (box_outer_size - 2*webbing_margin_x) / 50;
 webbing_side_height = box_bottom_height - 2*webbing_margin_y;
+lid_bevel_fit = 0.9;
+
+show_expanded=true;
 
 $fs=.5;
 $fa=5;
@@ -159,11 +162,22 @@ module box_bottom() {
         }
       }
     }
+    // Inner space in box.
     translate([0, 0, box_bottom_thick]) {
       linear_extrude(height=box_bottom_height) {
         square([box_inner_size, box_inner_size], center=true);
       }
     }
+    // Top bevels for easier lid fit.
+    translate([0, 0, box_bottom_height-lid_bevel_fit]) {
+      rotate([0, 0, 45]) {
+        cylinder(h=4*box_side_thick,
+                 d1=(box_inner_size-2*box_side_thick)/cos(180/4),
+                 d2=(box_inner_size+2*box_side_thick)/cos(180/4),
+                 center=true, $fn=4);
+      }
+    }
+    // Cutouts for the webbing panels.
     for (i = [0 : 1 : 1]) {
       for (j = [-1 : 2 : 1]) {
         translate([i*j*.5*box_outer_size, (1-i)*j*.5*box_outer_size, webbing_margin_y]) {
@@ -181,7 +195,7 @@ module box_bottom() {
 }
 
 box_bottom();
-explode=0*5;
+explode = (show_expanded ? 5 : 0);
 if (true) {
 //  translate([0, 0, explode + box_bottom_height]) top_webbing();
   translate([0, -explode, 0]) front_webbing();
