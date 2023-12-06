@@ -2,11 +2,13 @@ nominal_print_layer = 0.2;
 
 box_inner_size = 65;
 box_inner_height = 50;
-box_corner_r = 4;
+box_corner_r = 3.2;
 box_bottom_thick = 1.5;
 box_top_inner_height = 8;
 box_top_thick = 4.5;
 box_top_height = box_top_inner_height + box_top_thick; // ToDo also overlap
+lid_insert_height = 4.2;
+lid_insert_thick = 1.4;
 box_bottom_inner_height = box_inner_height - box_top_inner_height;
 box_bottom_height = box_bottom_thick + box_bottom_inner_height;
 webbing_border_thick = 1.4;
@@ -15,7 +17,7 @@ webbing_margin_y = 3.5;
 webbing_margin_top = 4;
 webbing_thick = 0.8;
 webbing_base_thick = 0.8;
-box_side_thick = webbing_thick + webbing_base_thick + 1.2;
+box_side_thick = webbing_thick + webbing_base_thick + 2.4;
 box_outer_size = box_inner_size + 2*box_side_thick;
 web_scaling = (box_outer_size - 2*webbing_margin_x) / 50;
 webbing_side_height = box_bottom_height - 2*webbing_margin_y;
@@ -206,8 +208,8 @@ module box_bottom() {
 
   difference() {
     linear_extrude(height=box_bottom_height) {
-      offset(r=box_side_thick) {
-        offset(delta=-box_side_thick) {
+      offset(r=box_corner_r) {
+        offset(delta=-box_corner_r) {
           square([box_outer_size, box_outer_size], center=true);
         }
       }
@@ -218,10 +220,17 @@ module box_bottom() {
         square([box_inner_size, box_inner_size], center=true);
       }
     }
+    // Insertion for lid.
+    translate([0, 0, box_bottom_height - (lid_insert_height+nominal_print_layer)]) {
+      linear_extrude(height=lid_insert_height+nominal_print_layer+eps) {
+        square([box_inner_size+2*lid_insert_thick, box_inner_size+2*lid_insert_thick],
+               center=true);
+      }
+    }
     // Top bevels for easier lid fit.
-    translate([0, 0, box_bottom_height-lid_bevel_fit]) {
+    translate([0, 0, box_bottom_height - lid_bevel_fit - lid_insert_thick]) {
       rotate([0, 0, 45]) {
-        cylinder(h=4*box_side_thick,
+        cylinder(h=2*box_side_thick,
                  d1=(box_inner_size-2*box_side_thick)/cos(180/4),
                  d2=(box_inner_size+2*box_side_thick)/cos(180/4),
                  center=true, $fn=4);
@@ -352,10 +361,28 @@ module box_top() {
   T = webbing_base_top_thick + webbing_thick;
 
   difference() {
-    rounded_slab(box_outer_size, box_outer_size, box_top_height, box_corner_r);
+    union() {
+      rounded_slab(box_outer_size, box_outer_size, box_top_height, box_corner_r);
+      // Insertion to fit lid in bottom.
+      intersection() {
+        translate([0, 0, -box_top_height - .5*lid_insert_height + 0.01]) {
+          cube([box_inner_size +2*lid_insert_thick, box_inner_size +2*lid_insert_thick,
+                lid_insert_height], center=true);
+        }
+        // Bevels for easier lid fit.
+        translate([0, 0, -(box_top_height + lid_insert_height) + lid_bevel_fit]) {
+          rotate([0, 0, 45]) {
+            cylinder(h=2*lid_insert_height,
+                     d1=(box_inner_size+2*lid_insert_thick-2*lid_insert_height)/cos(180/4),
+                     d2=(box_inner_size+2*lid_insert_thick+2*lid_insert_height)/cos(180/4),
+                     center=true, $fn=4);
+          }
+        }
+      }
+    }
     // Inner hollow in box lid.
-    translate([0, 0, -.5*box_top_height - box_top_thick]) {
-      cube([box_inner_size, box_inner_size, box_top_height], center=true);
+    translate([0, 0, -.5*(box_top_height + lid_insert_height) - box_top_thick]) {
+      cube([box_inner_size, box_inner_size, box_top_height + lid_insert_height], center=true);
     }
     // Cutout for the top panel.
     translate ([0, 0, .5*(-T+1)])
@@ -370,13 +397,13 @@ module box_top() {
 box_bottom();
 explode = (show_expanded ? 5 : 0);
 if (true) {
-  translate([0, 0, 2*explode + box_bottom_height + box_top_height]) top_webbing();
+  translate([0, 0, 3*explode + box_bottom_height + box_top_height]) top_webbing();
   translate([0, -explode, 0]) front_webbing();
   translate([0, explode, 0]) back_webbing();
   translate([-explode, 0, 0]) left_webbing();
   translate([explode, 0, 0]) right_webbing();
 }
 
-translate([0, 0, 60/* + ToDo */]) box_top();
+translate([0, 0, explode + box_bottom_height + lid_insert_height + box_top_height]) box_top();
 
 translate([0, 0, -15]) box_top_support();
