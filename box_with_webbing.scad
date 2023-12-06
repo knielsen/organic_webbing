@@ -196,43 +196,40 @@ module box_bottom() {
   }
 }
 
-module box_top() {
-  eps = 0.018;
-  intersection() {
-    translate([0, 0, -.5*box_top_height]) {
-      difference() {
-        cube([box_outer_size, box_outer_size, box_top_height], center=true);
-        translate([0, 0, -box_top_thick]) {
-          cube([box_inner_size, box_inner_size, box_top_height], center=true);
+// A box with the side and top edges rounded. Eg. for box lid.
+module rounded_slab(sizex, sizey, heightz, round_r) {
+  eps=0.0068;
+  for (j= [-1 : 2: 1]) {
+    for (i= [-1 : 2: 1]) {
+      translate([i*(.5*sizex-round_r), j*(.5*sizey-round_r), -round_r]) {
+        sphere(r=round_r);
+        translate([0, 0, -(heightz-round_r)])
+          cylinder(r=round_r, h=heightz-round_r+eps);
+      }
+      sizexy = (1-j)/2*sizex + (j+1)/2*sizey;
+      rotate([0, 0, 45*(j+1)]) {
+        translate([0, i*(.5*sizexy-round_r), -round_r]) {
+          rotate([0, 90, 0]) {
+            cylinder(r=round_r, h=sizexy-2*round_r+eps, center=true);
+          }
         }
       }
     }
-    // Rounding of the top of the box.
-    union() {
-      for (j= [-1 : 2: 1]) {
-        for (i= [-1 : 2: 1]) {
-          translate([i*(.5*box_outer_size-box_corner_r),
-                     j*(.5*box_outer_size-box_corner_r),
-                     -box_corner_r]) {
-            sphere(r=box_corner_r);
-            translate([0, 0, -box_top_height])
-              cylinder(r=box_corner_r, h=box_top_height);
-          }
-          rotate([0, 0, 45*(j+1)]) {
-            translate([0, i*(.5*box_outer_size-box_corner_r), -box_corner_r]) {
-              rotate([0, 90, 0]) {
-                cylinder(r=box_corner_r, h=box_outer_size-2*box_corner_r, center=true);
-              }
-            }
-          }
-        }
-      }
-      translate([0, 0, -.5*box_top_height-box_corner_r + eps]) {
-        cube([box_outer_size-2*box_corner_r, box_outer_size, box_top_height], center=true);
-        cube([box_outer_size, box_outer_size-2*box_corner_r, box_top_height], center=true);
-      }
-      cube([box_outer_size-2*box_corner_r, box_outer_size-2*box_corner_r,
-            box_top_height], center=true);
+  }
+  translate([0, 0, -.5*(heightz+round_r)]) {
+    cube([sizex-2*round_r, sizey, heightz-round_r], center=true);
+    cube([sizex, sizey-2*round_r, heightz-round_r], center=true);
+  }
+  translate([0, 0, -.5*(round_r+eps)]) {
+    cube([sizex-2*round_r, sizey-2*round_r, round_r+eps], center=true);
+  }
+}
+
+module box_top() {
+  difference() {
+    rounded_slab(box_outer_size, box_outer_size, box_top_height, box_corner_r);
+    translate([0, 0, -.5*box_top_height - box_top_thick]) {
+      cube([box_inner_size, box_inner_size, box_top_height], center=true);
     }
   }
 }
