@@ -3,6 +3,8 @@ box_inner_height = 50;
 box_corner_r = 4;
 box_bottom_thick = 1.5;
 box_top_inner_height = 8;
+box_top_thick = 4.5;
+box_top_height = box_top_inner_height + box_top_thick; // ToDo also overlap
 box_bottom_inner_height = box_inner_height - box_top_inner_height;
 box_bottom_height = box_bottom_thick + box_bottom_inner_height;
 webbing_border_thick = 0.95;
@@ -194,12 +196,55 @@ module box_bottom() {
   }
 }
 
+module box_top() {
+  eps = 0.018;
+  intersection() {
+    translate([0, 0, -.5*box_top_height]) {
+      difference() {
+        cube([box_outer_size, box_outer_size, box_top_height], center=true);
+        translate([0, 0, -box_top_thick]) {
+          cube([box_inner_size, box_inner_size, box_top_height], center=true);
+        }
+      }
+    }
+    // Rounding of the top of the box.
+    union() {
+      for (j= [-1 : 2: 1]) {
+        for (i= [-1 : 2: 1]) {
+          translate([i*(.5*box_outer_size-box_corner_r),
+                     j*(.5*box_outer_size-box_corner_r),
+                     -box_corner_r]) {
+            sphere(r=box_corner_r);
+            translate([0, 0, -box_top_height])
+              cylinder(r=box_corner_r, h=box_top_height);
+          }
+          rotate([0, 0, 45*(j+1)]) {
+            translate([0, i*(.5*box_outer_size-box_corner_r), -box_corner_r]) {
+              rotate([0, 90, 0]) {
+                cylinder(r=box_corner_r, h=box_outer_size-2*box_corner_r, center=true);
+              }
+            }
+          }
+        }
+      }
+      translate([0, 0, -.5*box_top_height-box_corner_r + eps]) {
+        cube([box_outer_size-2*box_corner_r, box_outer_size, box_top_height], center=true);
+        cube([box_outer_size, box_outer_size-2*box_corner_r, box_top_height], center=true);
+      }
+      cube([box_outer_size-2*box_corner_r, box_outer_size-2*box_corner_r,
+            box_top_height], center=true);
+    }
+  }
+}
+
 box_bottom();
 explode = (show_expanded ? 5 : 0);
 if (true) {
-//  translate([0, 0, explode + box_bottom_height]) top_webbing();
+  translate([0, 0, explode + box_bottom_height + box_top_height]) top_webbing();
   translate([0, -explode, 0]) front_webbing();
   translate([0, explode, 0]) back_webbing();
   translate([-explode, 0, 0]) left_webbing();
   translate([explode, 0, 0]) right_webbing();
 }
+
+translate([0, 0, 60/* + ToDo */]) box_top();
