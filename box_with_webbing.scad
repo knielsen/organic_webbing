@@ -5,8 +5,6 @@ box_inner_height = 50;
 box_corner_r = 3.2;
 box_bottom_thick = 1.5;
 box_top_inner_height = 8;
-box_top_thick = 4.5;
-box_top_height = box_top_inner_height + box_top_thick; // ToDo also overlap
 lid_insert_height = 4.2;
 lid_insert_thick = 1.4;
 box_bottom_inner_height = box_inner_height - box_top_inner_height;
@@ -28,11 +26,15 @@ interface_beam_x1 = 0.4;
 interface_beam_x2 = interface_beam_x1 + 2*sin(22.5)*interface_beam_height;
 interface_beam_cut = nominal_print_layer;
 interface_beam_nominal_spacing = 9;
-interface_beam_count = floor(webbing_top_size / interface_beam_nominal_spacing + 0.5) - 1;
-interface_beam_spacing = webbing_top_size / (interface_beam_count + 1);
+interface_beam_count = floor((webbing_top_size + interface_beam_x1) /
+                             interface_beam_nominal_spacing + 0.5) - 1;
+interface_beam_spacing = (webbing_top_size + interface_beam_x1) /
+                         (interface_beam_count + 1);
 webbing_base_top_thick = webbing_base_thick + interface_beam_height;
+box_top_thick = webbing_thick + webbing_base_top_thick + 1.2;
+box_top_height = box_top_inner_height + box_top_thick;
 interface_support_size = webbing_top_size - 2*2.1;
-interface_support_thick = webbing_base_thick + webbing_thick + .5*interface_beam_height;
+interface_support_thick = webbing_base_thick + webbing_thick + 2*nominal_print_layer;
 
 show_expanded=true;
 
@@ -145,7 +147,7 @@ module interface_beam(len, cut=false) {
 
 module top_webbing_interface(len, cut) {
   for (i = [1 : interface_beam_count]) {
-    translate([(-.5 + i/(interface_beam_count+1))*webbing_top_size, 0, 0]) {
+    translate([-.5*(webbing_top_size + interface_beam_x1) + i*interface_beam_spacing, 0, 0]) {
       interface_beam(len, cut);
     }
   }
