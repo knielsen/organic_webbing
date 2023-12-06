@@ -197,7 +197,7 @@ module box_bottom() {
 }
 
 // A box with the side and top edges rounded. Eg. for box lid.
-module rounded_slab(sizex, sizey, heightz, round_r) {
+module rounded_slab_simple_but_slow_maybe(sizex, sizey, heightz, round_r) {
   eps=0.0068;
   for (j= [-1 : 2: 1]) {
     for (i= [-1 : 2: 1]) {
@@ -223,6 +223,75 @@ module rounded_slab(sizex, sizey, heightz, round_r) {
   translate([0, 0, -.5*(round_r+eps)]) {
     cube([sizex-2*round_r, sizey-2*round_r, round_r+eps], center=true);
   }
+}
+
+// Try for the same with a single direct polyhedron().
+//
+// Base the rounding on a cylinder subdivided in 4*N faces (excluding
+// top/bottom). There are corners at the 90°'s, so no faces are exactly 90°.
+//
+// Faces:
+//  - A single horizontal bottom face (4*N+4 edges).
+//  - 4*N+4 vertical sides (4 edges each).
+//  - (N-1)*(4*N+4) skewed 4-edge on the rounded corners on the top.
+//  - 4*N+4 final skewed edges. The ones on the sides are 4-edge, but the
+//    4*N in the corners share a corner point and have 3 edges.
+//  - A top horizontal simple rectangle with 4 edges.
+//
+// Points:
+//   Each layer is 4*N+4 points, corresponding to a cylinder divided with 4*N
+//   points, but with the 90° points duplicated to insert a 90° slab side. And
+//   on the top layer there are just 4 points since all points in a corner
+//   coincide there.
+//
+// Layers:
+//  - 1 vertex layer on the bottom.
+//  - N+1 vertex layers for rounding the top edges. Goes from z=heightz-round_r
+//    to z=heightz. Layer i (i=0, ..., N) has
+//      z = round_r*sin(90*i/N) - round_r - heightz
+//
+// Probably too much coordinate work compared to just building as the above
+// from cylinders and spheres and 3 box pieces, but just for fun to see how it
+// can be done and if it's any faster/smaller/cleaner.
+module rounded_slab(sizex, sizey, heightz, round_r) {
+  N = round_r < 0.01 ? 1 :
+    $fn > 0 ? max(floor($fn/4 + 0.5), 1) :
+    max( floor(min(360/$fa, round_r*2*PI/$fs)/4 + 0.5), 1 );
+
+  // N*(N+1)+1 points for one corner (~ 1/8 a sphere).
+  corner_points =
+    [for (j = [0 : N-1])
+        for (i = [0 : N])
+               [cos(90*j/N)*round_r*cos(90*i/N),
+                cos(90*j/N)*round_r*sin(90*i/N),
+                round_r*sin(90*j/N)],
+     [0, 0, round_r] ];
+  all_points =
+    [for (k = [-1 : N])
+       for (c = [0 : 3])
+         for (i = [0 : 1 : (k < N ? N : 0)])
+           let (j=(k < 0 ? 0 : k),
+                dx = ( c==0 || c==3 ? 1 : -1),
+                dy = ( c<=1 ? 1 : -1),
+                p=corner_points[j*(N+1)+((c%2 == 0 || k==N) ? i : N-i)])
+             [ dx*(.5*sizex - round_r + p[0]),
+               dy*(.5*sizey - round_r + p[1]),
+               (k==-1 ? -heightz : p[2] - round_r) ] ];
+  faces =
+    [ [for (i = [0 : 4*N+4-1]) i],
+      for (j = [0 : N-1])
+        for (i = [0 : 4*N+4-1])
+          let (b1 = j*(4*N+4), b2 = (j+1)*(4*N+4))
+            [ b1 + i, b2 + i, b2 + (i + 1)%(4*N+4), b1 + (i + 1)%(4*N+4) ],
+      for (c = [0 : 3])
+        for (i = [0 : N])
+          let (b1 = N*(4*N+4), b2 = (N+1)*(4*N+4), k = c*(N+1) + i)
+            (i<N ?
+             [ b1 + k, b2 + c, b1 + (k + 1)%(4*N+4) ] :
+             [ b1 + k, b2 + c, b2 + (c+1)%4, b1 + (k + 1)%(4*N+4) ]),
+      [for (i = [3 : -1 : 0]) (N+1)*(4*N+4) + i]
+    ];
+  polyhedron(points=all_points, faces=faces, convexity=2);
 }
 
 module box_top() {
