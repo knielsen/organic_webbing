@@ -1,3 +1,5 @@
+nominal_print_layer = 0.2;
+
 box_inner_size = 65;
 box_inner_height = 50;
 box_corner_r = 4;
@@ -7,7 +9,7 @@ box_top_thick = 4.5;
 box_top_height = box_top_inner_height + box_top_thick; // ToDo also overlap
 box_bottom_inner_height = box_inner_height - box_top_inner_height;
 box_bottom_height = box_bottom_thick + box_bottom_inner_height;
-webbing_border_thick = 0.95;
+webbing_border_thick = 1.4;
 webbing_margin_x = 5.5;
 webbing_margin_y = 3.5;
 webbing_margin_top = 4;
@@ -17,7 +19,18 @@ box_side_thick = webbing_thick + webbing_base_thick + 1.2;
 box_outer_size = box_inner_size + 2*box_side_thick;
 web_scaling = (box_outer_size - 2*webbing_margin_x) / 50;
 webbing_side_height = box_bottom_height - 2*webbing_margin_y;
+webbing_top_size = box_outer_size - 2*webbing_margin_top;
 lid_bevel_fit = 0.9;
+interface_beam_height = 2.8;
+interface_beam_x1 = 0.4;
+interface_beam_x2 = interface_beam_x1 + 2*sin(22.5)*interface_beam_height;
+interface_beam_cut = nominal_print_layer;
+interface_beam_nominal_spacing = 9;
+interface_beam_count = floor(webbing_top_size / interface_beam_nominal_spacing + 0.5) - 1;
+interface_beam_spacing = webbing_top_size / (interface_beam_count + 1);
+webbing_base_top_thick = webbing_base_thick + interface_beam_height;
+interface_support_size = webbing_top_size - 2*2.1;
+interface_support_thick = webbing_base_thick + webbing_thick + .5*interface_beam_height;
 
 show_expanded=true;
 
@@ -78,18 +91,20 @@ module framed_webbing(area_sx, area_sy, trans_x=0, trans_y=0, rot=0) {
   }
 }
 
-module generic_webbing(size_x, maybe_size_y=0, trans_x=0, trans_y=0, rot=0, bevel=false) {
+module generic_webbing(size_x, maybe_size_y=0, trans_x=0,
+                       base_thick=webbing_base_thick, thick=webbing_thick,
+                       trans_y=0, rot=0, bevel=false) {
   eps= 0.0017;
   size_y = maybe_size_y ? maybe_size_y : size_x;
 
   difference() {
     union() {
-      linear_extrude(height=webbing_base_thick) {
+      linear_extrude(height=base_thick) {
         square([size_x, size_y], center=true);
       }
       color("red")
-      translate([0, 0, webbing_base_thick - eps]) {
-        linear_extrude(height=webbing_thick, convexity=10) {
+      translate([0, 0, base_thick - eps]) {
+        linear_extrude(height=thick, convexity=10) {
           framed_webbing(size_x, size_y,
                          trans_x=trans_x, trans_y=trans_y, rot=rot);
         }
@@ -97,17 +112,50 @@ module generic_webbing(size_x, maybe_size_y=0, trans_x=0, trans_y=0, rot=0, beve
     }
     if (bevel) {
       // 45° bevel to make bottom easier to print.
-      translate([0, .5*size_y-(webbing_base_thick+webbing_thick), 0])
+      translate([0, .5*size_y-(base_thick+thick), 0])
       rotate([-45, 0, 0])
-      translate([0, (webbing_base_thick+webbing_thick), 0])
-      cube([size_x+1, 2*(webbing_base_thick+webbing_thick),
-            8*(webbing_base_thick+webbing_thick)], center=true);
+      translate([0, (base_thick+thick), 0])
+      cube([size_x+1, 2*(base_thick+thick),
+            8*(base_thick+thick)], center=true);
+    }
+  }
+}
+
+// Making it a bit easier to 3d-print the lid of the box upside-down with a
+// cut-out for the top webbing panel. Idea is to print the bottom of the
+// cut-out with some support, but only up to some narrow trianguar-profile
+// beams so the support will be easy to remove without leaving too much mess
+// that prevents a clean interface. And then some matching depressions in the
+// webbing panel.
+module interface_beam(len, cut=false) {
+  h = interface_beam_height - (cut ? interface_beam_cut : 0);
+  x1 = interface_beam_x1 +
+    (cut ?
+     (interface_beam_x2 - interface_beam_x1) / interface_beam_height * interface_beam_cut :
+     0);
+  x2 = interface_beam_x2;
+  rotate([90, 0, 0]) {
+    linear_extrude(height=len, center=true) {
+      polygon([[.5*x2, 0], [-.5*x2, 0], [-.5*x1, h], [.5*x1, h]]);
+    }
+  }
+}
+
+module top_webbing_interface(len, cut) {
+  for (i = [1 : interface_beam_count]) {
+    translate([(-.5 + i/(interface_beam_count+1))*webbing_top_size, 0, 0]) {
+      interface_beam(len, cut);
     }
   }
 }
 
 module top_webbing() {
-  generic_webbing(box_outer_size - 2*webbing_margin_top);
+  eps=0.0013;
+  difference() {
+    generic_webbing(webbing_top_size, base_thick=webbing_base_top_thick);
+    translate([0, 0, -eps])
+      top_webbing_interface(webbing_top_size+2*eps, cut=false);
+  }
 }
 
 module front_webbing() {
@@ -294,19 +342,35 @@ module rounded_slab(sizex, sizey, heightz, round_r) {
   polyhedron(points=all_points, faces=faces, convexity=2);
 }
 
+module box_top_support() {
+  translate([0, 0, -.5*interface_support_thick])
+    cube([interface_support_size, interface_support_size, interface_support_thick],
+         center=true);
+}
+
 module box_top() {
+  T = webbing_base_top_thick + webbing_thick;
+
   difference() {
     rounded_slab(box_outer_size, box_outer_size, box_top_height, box_corner_r);
+    // Inner hollow in box lid.
     translate([0, 0, -.5*box_top_height - box_top_thick]) {
       cube([box_inner_size, box_inner_size, box_top_height], center=true);
     }
+    // Cutout for the top panel.
+    translate ([0, 0, .5*(-T+1)])
+      cube([webbing_top_size, webbing_top_size, T+1], center=true);
   }
+  // Top panel interface beams.
+  translate([0, 0, -T])
+    top_webbing_interface(webbing_top_size, cut=true);
+  %box_top_support();
 }
 
 box_bottom();
 explode = (show_expanded ? 5 : 0);
 if (true) {
-  translate([0, 0, explode + box_bottom_height + box_top_height]) top_webbing();
+  translate([0, 0, 2*explode + box_bottom_height + box_top_height]) top_webbing();
   translate([0, -explode, 0]) front_webbing();
   translate([0, explode, 0]) back_webbing();
   translate([-explode, 0, 0]) left_webbing();
@@ -314,3 +378,5 @@ if (true) {
 }
 
 translate([0, 0, 60/* + ToDo */]) box_top();
+
+translate([0, 0, -15]) box_top_support();
