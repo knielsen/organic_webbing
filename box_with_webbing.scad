@@ -1,16 +1,16 @@
 nominal_print_layer = 0.2;
 
-box_inner_size = 65;
-box_inner_height = 50;
+box_inner_size = 65+12;
+box_inner_height = 50+5;
 box_corner_r = 3.2;
 box_bottom_thick = 1.5;
-box_top_inner_height = 8;
+box_top_inner_height = 3;
 lid_insert_height = 4.2;
 lid_insert_thick = 1.4;
 box_bottom_inner_height = box_inner_height - box_top_inner_height;
 box_bottom_height = box_bottom_thick + box_bottom_inner_height;
 webbing_border_thick = 1.4;
-webbing_margin_x = 5.5;
+webbing_margin_x = 4.8;
 webbing_margin_y = 3.5;
 webbing_margin_top = 4;
 webbing_thick = 0.8;
@@ -18,9 +18,12 @@ webbing_base_thick = 0.8;
 box_side_thick = webbing_thick + webbing_base_thick + 2.4;
 box_outer_size = box_inner_size + 2*box_side_thick;
 web_scaling = (box_outer_size - 2*webbing_margin_x) / 50;
-webbing_side_height = box_bottom_height - 2*webbing_margin_y;
+side_webbing_height_tolerance = 0.25;
+webbing_side_height = box_bottom_height - 2*webbing_margin_y - side_webbing_height_tolerance;
 webbing_top_size = box_outer_size - 2*webbing_margin_top;
+webbing_top_fit_tolerance = 2*0.1;
 lid_bevel_fit = 0.9;
+lid_fit_tollerance = 0.15;
 interface_beam_height = 2.8;
 interface_beam_x1 = 0.4;
 interface_beam_x2 = interface_beam_x1 + 2*sin(22.5)*interface_beam_height;
@@ -156,9 +159,10 @@ module top_webbing_interface(len, cut) {
 module top_webbing() {
   eps=0.0013;
   difference() {
-    generic_webbing(webbing_top_size, base_thick=webbing_base_top_thick);
+    generic_webbing(webbing_top_size, base_thick=webbing_base_top_thick,
+                    trans_x=-0.5, trans_y=0);
     translate([0, 0, -eps])
-      top_webbing_interface(webbing_top_size+2*eps, cut=false);
+      top_webbing_interface(webbing_top_size*1.5, cut=false);
   }
 }
 
@@ -177,7 +181,7 @@ module back_webbing() {
              .5*webbing_side_height + webbing_margin_y]) {
     rotate([-90, 180, 0]) {
       generic_webbing(box_outer_size - 2*webbing_margin_x, webbing_side_height,
-                      trans_x=51, trans_y=-18, rot=73, bevel=true);
+                      trans_x=64, trans_y=-18, rot=73, bevel=true);
     }
   }
 }
@@ -187,7 +191,7 @@ module left_webbing() {
              .5*webbing_side_height + webbing_margin_y]) {
     rotate([180, 90, 0]) rotate([0,0,90]) {
       generic_webbing(box_outer_size - 2*webbing_margin_x, webbing_side_height,
-                      trans_x=-23, trans_y=-10, rot=-12, bevel=true);
+                      trans_x=-23, trans_y=-10.4, rot=-12, bevel=true);
     }
   }
 }
@@ -197,7 +201,7 @@ module right_webbing() {
              .5*webbing_side_height + webbing_margin_y]) {
     rotate([0, 90, 0]) rotate([0,0,90]) {
       generic_webbing(box_outer_size - 2*webbing_margin_x, webbing_side_height,
-                      trans_x=-1, trans_y=-30.2, rot=23, bevel=true);
+                      trans_x=-1.4, trans_y=-30.2, rot=23, bevel=true);
     }
   }
 }
@@ -225,8 +229,8 @@ module box_bottom() {
     // Insertion for lid.
     translate([0, 0, box_bottom_height - (lid_insert_height+nominal_print_layer)]) {
       linear_extrude(height=lid_insert_height+nominal_print_layer+eps) {
-        square([box_inner_size+2*lid_insert_thick, box_inner_size+2*lid_insert_thick],
-               center=true);
+        L = box_inner_size + 2*lid_insert_thick + lid_fit_tollerance;
+        square([L, L], center=true);
       }
     }
     // Top bevels for easier lid fit.
@@ -387,8 +391,10 @@ module box_top() {
       cube([box_inner_size, box_inner_size, box_top_height + lid_insert_height], center=true);
     }
     // Cutout for the top panel.
-    translate ([0, 0, .5*(-T+1)])
-      cube([webbing_top_size, webbing_top_size, T+1], center=true);
+    translate ([0, 0, .5*(-T+1)]) {
+      L = webbing_top_size + webbing_top_fit_tolerance;
+      cube([L, L, T+1], center=true);
+    }
   }
   // Top panel interface beams.
   translate([0, 0, -T])
@@ -399,13 +405,13 @@ module box_top() {
 box_bottom();
 explode = (show_expanded ? 5 : 0);
 if (true) {
-  translate([0, 0, 3*explode + box_bottom_height + box_top_height]) top_webbing();
+  translate([0, 0, 3*explode+box_bottom_height+box_top_height-lid_insert_height]) top_webbing();
   translate([0, -explode, 0]) front_webbing();
   translate([0, explode, 0]) back_webbing();
   translate([-explode, 0, 0]) left_webbing();
   translate([explode, 0, 0]) right_webbing();
 }
 
-translate([0, 0, explode + box_bottom_height + lid_insert_height + box_top_height]) box_top();
+translate([0, 0, 2*explode + box_bottom_height + box_top_height]) box_top();
 
 translate([0, 0, -15]) box_top_support();
