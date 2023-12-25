@@ -19,11 +19,15 @@ box_side_thick = webbing_thick + webbing_base_thick + 2.4;
 box_outer_size = box_inner_size + 2*box_side_thick;
 web_scaling = (box_outer_size - 2*webbing_margin_x) / 50;
 side_webbing_height_tolerance = 0.25;
+side_webbing_width_tolerance = 0.5;
 webbing_side_height = box_bottom_height - 2*webbing_margin_y - side_webbing_height_tolerance;
+webbing_side_width = box_outer_size - 2*webbing_margin_x - side_webbing_width_tolerance;
 webbing_top_size = box_outer_size - 2*webbing_margin_top;
 webbing_top_fit_tolerance = 2*0.1;
 lid_bevel_fit = 0.9;
-lid_fit_tollerance = 0.15;
+lid_corner_chamfer = 2.4;
+lid_fit_tollerance = 0.15/2;   // Tolerance on the bottom
+lid_fit_tollerance2 = 0.35/2;  // Tolerance on the top
 interface_beam_height = 2.8;
 interface_beam_x1 = 0.4;
 interface_beam_x2 = interface_beam_x1 + 2*sin(22.5)*interface_beam_height;
@@ -170,7 +174,7 @@ module front_webbing() {
   translate([0, -.5*box_outer_size + webbing_thick + webbing_base_thick,
              .5*webbing_side_height + webbing_margin_y]) {
     rotate([90, 0, 0]) {
-      generic_webbing(box_outer_size - 2*webbing_margin_x, webbing_side_height,
+      generic_webbing(webbing_side_width, webbing_side_height,
                       trans_x=-15.25, trans_y=14, rot=-37, bevel=true);
     }
   }
@@ -180,7 +184,7 @@ module back_webbing() {
   translate([0, .5*box_outer_size - (webbing_thick + webbing_base_thick),
              .5*webbing_side_height + webbing_margin_y]) {
     rotate([-90, 180, 0]) {
-      generic_webbing(box_outer_size - 2*webbing_margin_x, webbing_side_height,
+      generic_webbing(webbing_side_width, webbing_side_height,
                       trans_x=64, trans_y=-18, rot=73, bevel=true);
     }
   }
@@ -190,7 +194,7 @@ module left_webbing() {
   translate([-.5*box_outer_size + webbing_thick + webbing_base_thick, 0,
              .5*webbing_side_height + webbing_margin_y]) {
     rotate([180, 90, 0]) rotate([0,0,90]) {
-      generic_webbing(box_outer_size - 2*webbing_margin_x, webbing_side_height,
+      generic_webbing(webbing_side_width, webbing_side_height,
                       trans_x=-23, trans_y=-10.4, rot=-12, bevel=true);
     }
   }
@@ -200,7 +204,7 @@ module right_webbing() {
   translate([.5*box_outer_size - (webbing_thick + webbing_base_thick), 0,
              .5*webbing_side_height + webbing_margin_y]) {
     rotate([0, 90, 0]) rotate([0,0,90]) {
-      generic_webbing(box_outer_size - 2*webbing_margin_x, webbing_side_height,
+      generic_webbing(webbing_side_width, webbing_side_height,
                       trans_x=-1.4, trans_y=-30.2, rot=23, bevel=true);
     }
   }
@@ -229,12 +233,12 @@ module box_bottom() {
     // Insertion for lid.
     translate([0, 0, box_bottom_height - (lid_insert_height+nominal_print_layer)]) {
       linear_extrude(height=lid_insert_height+nominal_print_layer+eps) {
-        L = box_inner_size + 2*lid_insert_thick + lid_fit_tollerance;
+        L = box_inner_size + 2*(lid_insert_thick + lid_fit_tollerance);
         square([L, L], center=true);
       }
     }
     // Top bevels for easier lid fit.
-    translate([0, 0, box_bottom_height - lid_bevel_fit - lid_insert_thick]) {
+    translate([0, 0, box_bottom_height-lid_bevel_fit-lid_insert_thick-lid_fit_tollerance]) {
       rotate([0, 0, 45]) {
         cylinder(h=2*box_side_thick,
                  d1=(box_inner_size-2*box_side_thick)/cos(180/4),
@@ -372,11 +376,17 @@ module box_top() {
       // Insertion to fit lid in bottom.
       intersection() {
         translate([0, 0, -box_top_height - .5*lid_insert_height + 0.01]) {
-          cube([box_inner_size +2*lid_insert_thick, box_inner_size +2*lid_insert_thick,
-                lid_insert_height], center=true);
+          L = box_inner_size + 2*(lid_insert_thick - lid_fit_tollerance2);
+          linear_extrude(height=lid_insert_height, center=true) {
+            offset(delta=lid_corner_chamfer, chamfer=true) {
+              offset(delta=-lid_corner_chamfer) {
+                square([L, L], center=true);
+              }
+            }
+          }
         }
         // Bevels for easier lid fit.
-        translate([0, 0, -(box_top_height + lid_insert_height) + lid_bevel_fit]) {
+        translate([0, 0, -(box_top_height + lid_insert_height) + lid_bevel_fit + lid_fit_tollerance2]) {
           rotate([0, 0, 45]) {
             cylinder(h=2*lid_insert_height,
                      d1=(box_inner_size+2*lid_insert_thick-2*lid_insert_height)/cos(180/4),
